@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>成绩汇总工作台</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">成</span>
+      <div>
+        <div class="brand-title">成绩汇总工作台</div>
+        <div class="brand-sub">本地计算 · 数据不出电脑</div>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <label class="exam-name">
+        <span>考试名称</span>
+        <input id="examName" type="text" placeholder="如：2026学年高一上学期期中考试">
+      </label>
+    </div>
+    <div class="topbar-actions">
+      <span class="status-pill" id="dataStatus">未导入数据</span>
+      <button class="btn ghost" id="btnReset" type="button">重置</button>
+      <button class="btn primary" id="btnExportAll" type="button" disabled>一键下载全部</button>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="side">
+      <nav id="nav">
+        <button class="nav-item" data-page="import"><span class="nav-no">1</span>导入成绩</button>
+        <button class="nav-item" data-page="students"><span class="nav-no">2</span>学生管理</button>
+        <button class="nav-item" data-page="tiers"><span class="nav-no">3</span>班级层次</button>
+        <button class="nav-item" data-page="stats"><span class="nav-no">4</span>统计汇总</button>
+        <button class="nav-item" data-page="analysis"><span class="nav-no">5</span>成绩分析</button>
+        <button class="nav-item" data-page="awards"><span class="nav-no">6</span>奖励名单</button>
+        <button class="nav-item" data-page="export"><span class="nav-no">7</span>导出</button>
+      </nav>
+      <div class="side-foot">
+        <div class="side-note">提示：先导入「本次考试」，可选导入「上次考试」计算进退。</div>
+      </div>
+    </aside>
+
+    <main id="main">
+      <!-- 1 导入 -->
+      <section class="page" id="page-import">
+        <div class="page-head">
+          <h1>导入成绩</h1>
+          <p>支持一个年级总表 + 若干班级分表；也支持只上传一张总表。文件仅在本机解析。</p>
+        </div>
+        <div class="grid2">
+          <div class="card drop" id="dropCur" data-kind="cur">
+            <input type="file" accept=".xlsx,.xls" hidden id="fileCur">
+            <div class="drop-icon">↓</div>
+            <div class="drop-title">本次考试 <span class="req">必填</span></div>
+            <div class="drop-desc">拖入 Excel，或点击选择文件</div>
+            <div class="drop-file" id="fileCurName">未选择文件</div>
+          </div>
+          <div class="card drop" id="dropPrev" data-kind="prev">
+            <input type="file" accept=".xlsx,.xls" hidden id="filePrev">
+            <div class="drop-icon">↺</div>
+            <div class="drop-title">上次考试 <span class="opt">可选</span></div>
+            <div class="drop-desc">用于计算学生与班级的位次进退</div>
+            <div class="drop-file" id="filePrevName">未选择文件</div>
+          </div>
+        </div>
+
+        <div class="card" id="importSummaryCard" hidden>
+          <div class="card-head"><h2>解析结果</h2><span class="muted" id="baseSheetNote"></span></div>
+          <div class="stat-row" id="importStats"></div>
+          <div class="sheet-list" id="sheetList"></div>
+        </div>
+
+        <div class="card" id="issuesCard" hidden>
+          <div class="card-head"><h2>数据质检</h2><span class="muted">不阻断导入，但建议核对</span></div>
+          <ul class="issue-list" id="issueList"></ul>
+        </div>
+
+        <div class="actions-row">
+          <button class="btn primary" id="btnGotoStudents" type="button" disabled>下一步：核对学生</button>
+        </div>
+      </section>
+
+      <!-- 2 学生 -->
+      <section class="page" id="page-students" hidden>
+        <div class="page-head">
+          <h1>学生管理</h1>
+          <p>已按年级总表学号清洗：缺考与异常学生整行删除，班级分表同步。可手动增删学生，所有统计实时联动。</p>
+        </div>
+        <div class="stat-row" id="studentStats"></div>
+        <div class="card">
+          <div class="toolbar">
+            <input class="input" id="studentSearch" type="search" placeholder="搜索学号 / 姓名">
+            <select class="input" id="studentClassFilter"></select>
+            <span class="muted" id="studentCount"></span>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnAddStudent" type="button">新增学生</button>
+          </div>
+          <div class="table-wrap tall" id="studentTable"></div>
+        </div>
+        <div class="card" id="absentCard">
+          <div class="card-head"><h2>缺考 / 已删除名单</h2><span class="muted" id="absentCount"></span></div>
+          <div class="table-wrap short" id="absentTable"></div>
+        </div>
+      </section>
+
+      <!-- 3 层次 -->
+      <section class="page" id="page-tiers" hidden>
+        <div class="page-head">
+          <h1>班级层次</h1>
+          <p>默认：精英班 1/8/9/16/17，火箭班 2/4/5/7/10/11/12/13/15/19/20，实验班 3/6/14/18。可自由增删改，改动立即联动分层排名、差值表与奖励名单。</p>
+        </div>
+        <div class="tier-board" id="tierBoard"></div>
+        <div class="card">
+          <div class="toolbar">
+            <input class="input" id="newTierName" type="text" placeholder="新层次名称，如：重点班">
+            <button class="btn small" id="btnAddTier" type="button">新增层次</button>
+            <span class="spacer"></span>
+            <button class="btn small ghost" id="btnResetTiers" type="button">恢复默认层次</button>
+          </div>
+          <p class="muted small-note">每个班级只能属于一个层次；未归类的班级会显示在下方「未归类」。</p>
+          <div id="unassignedClasses" class="chip-row"></div>
+        </div>
+      </section>
+
+      <!-- 4 统计 -->
+      <section class="page" id="page-stats" hidden>
+        <div class="page-head">
+          <h1>统计汇总</h1>
+          <p>年级总表、班级分表、班级均分与分层排名、班级差值表。排名均为标准 RANK：同分并列、跳号。</p>
+        </div>
+        <div class="subtabs" id="statTabs">
+          <button class="subtab" data-tab="grade">年级总表</button>
+          <button class="subtab" data-tab="class">班级分表</button>
+          <button class="subtab" data-tab="means">班级均分统计</button>
+          <button class="subtab" data-tab="diff">班级差值表</button>
+        </div>
+
+        <div class="card tab-panel" data-panel="grade">
+          <div class="toolbar">
+            <input class="input" id="gradeSearch" type="search" placeholder="搜索学号 / 姓名">
+            <select class="input" id="gradeClassFilter"></select>
+            <select class="input" id="gradePageSize">
+              <option value="50">每页 50</option>
+              <option value="100" selected>每页 100</option>
+              <option value="200">每页 200</option>
+            </select>
+            <span class="muted" id="gradeCount"></span>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnExportGrade" type="button">导出年级总表</button>
+          </div>
+          <div class="table-wrap tall" id="gradeTable"></div>
+          <div class="pager" id="gradePager"></div>
+        </div>
+
+        <div class="card tab-panel" data-panel="class" hidden>
+          <div class="toolbar">
+            <select class="input" id="classSelect"></select>
+            <span class="muted" id="classSheetCount"></span>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnExportClass" type="button">导出该班</button>
+          </div>
+          <div class="table-wrap tall" id="classTable"></div>
+        </div>
+
+        <div class="card tab-panel" data-panel="means" hidden>
+          <div class="toolbar">
+            <span class="muted">均分按班级条件统计；名次为班级之间的 RANK。</span>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnExportMeans" type="button">导出均分统计</button>
+          </div>
+          <div class="table-wrap tall" id="meansTable"></div>
+        </div>
+
+        <div class="card tab-panel" data-panel="diff" hidden>
+          <div class="toolbar">
+            <span class="muted">按层次分组，组末一行为本层次平均；班主任、代课教师可直接编辑并保存。</span>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnImportTeachers" type="button">导入班主任 / 教师</button>
+            <input type="file" id="fileTeachers" accept=".xlsx,.xls" hidden>
+            <span class="muted" id="teacherStatus"></span>
+            <button class="btn small" id="btnExportDiff" type="button">导出差值表</button>
+          </div>
+          <div id="diffTable"></div>
+        </div>
+      </section>
+
+      <!-- 5 分析 -->
+      <section class="page" id="page-analysis" hidden>
+        <div class="page-head">
+          <h1>班级成绩分析</h1>
+          <p>选择任意班级生成分析报告；文字板块可在线修改，随结果一起导出。</p>
+        </div>
+        <div class="toolbar">
+          <select class="input" id="analysisClass"></select>
+          <button class="btn small" id="btnPrintAnalysis" type="button">打印视图</button>
+          <span class="spacer"></span>
+          <button class="btn small" id="btnExportAnalysis" type="button">导出该班分析</button>
+        </div>
+        <div id="analysisBody"></div>
+
+        <div class="card" id="infoCard">
+          <div class="card-head"><h2>全年级专项统计</h2><span class="muted" id="infoStatus">尚未导入中考成绩 / 类别</span></div>
+          <div class="toolbar">
+            <button class="btn small" id="btnImportInfo" type="button">导入学生信息（中考 / 类别）</button>
+            <input type="file" id="fileInfo" accept=".xlsx,.xls" hidden>
+            <label class="inline-field">本校录取线
+              <input class="input narrow" id="zkCutA" type="number" step="1" value="688"> 分
+            </label>
+            <label class="inline-field">对比校线
+              <input class="input narrow" id="zkCutB" type="number" step="1" value="699"> 分
+            </label>
+            <span class="spacer"></span>
+            <button class="btn small" id="btnExportSpecial" type="button">导出专项统计</button>
+          </div>
+          <p class="muted small-note">学生信息表需含「学号」「中考总分」，可选「类别」（如 子弟、休返）；也可以直接在成绩总表里加这两列。</p>
+        </div>
+
+        <div class="card" id="zkCard" hidden>
+          <div class="card-head"><h2>中考成绩分组（全年级）</h2><span class="muted" id="zkNote"></span></div>
+          <div class="table-wrap" id="zkTable"></div>
+        </div>
+
+        <div class="card" id="excludeCard" hidden>
+          <div class="card-head"><h2>剔除特定学生后汇算（全年级）</h2><span class="muted" id="excludeNote"></span></div>
+          <div class="toolbar" id="exBulk"></div>
+          <div class="table-wrap short" id="exSpecial"></div>
+          <div class="toolbar">
+            <input class="input" id="exSearch" type="search" placeholder="搜索学号 / 姓名，点「加入剔除」">
+            <span id="exResults" class="chip-row"></span>
+          </div>
+          <div class="chip-row" id="exChips" style="margin-bottom:10px"></div>
+          <div class="table-wrap" id="exTable"></div>
+        </div>
+      </section>
+
+      <!-- 6 奖励 -->
+      <section class="page" id="page-awards" hidden>
+        <div class="page-head">
+          <h1>奖励名单</h1>
+          <p>总分优秀按各层次等比例选拔，总数约 200 人；单科年级第一同分并列全部列出。</p>
+        </div>
+        <div class="toolbar">
+          <label class="inline-field">优秀比例
+            <input class="input narrow" id="awardPct" type="number" min="0" max="100" step="0.1" value="16.7">
+            <span class="muted">%</span>
+          </label>
+          <span class="muted" id="awardPreview"></span>
+          <span class="spacer"></span>
+          <button class="btn small" id="btnExportAwards" type="button">导出奖励名单</button>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>总分优秀学生</h2><span class="muted" id="awardTotalCount"></span></div>
+          <div class="table-wrap" id="awardExcellent"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>单科年级第一</h2><span class="muted">同分并列全部列出</span></div>
+          <div class="table-wrap" id="awardTop"></div>
+        </div>
+      </section>
+
+      <!-- 7 导出 -->
+      <section class="page" id="page-export" hidden>
+        <div class="page-head">
+          <h1>导出</h1>
+          <p>表头一行、白底无填充，数值为真实数值，WPS / Excel 均可直接打开。</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>选择要下载的文件</h2><span class="muted">每个模块一个独立 xlsx，勾选后批量下载</span></div>
+          <div class="toolbar">
+            <button class="btn small" id="exSelectAll" type="button">全选</button>
+            <button class="btn small" id="exSelectNone" type="button">全不选</button>
+            <span class="spacer"></span>
+            <button class="btn small" id="exMerge" type="button">合并为一个工作簿</button>
+            <button class="btn primary" id="exDownloadSel" type="button">下载选中</button>
+          </div>
+          <div id="exportList" class="export-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>导出说明</h2></div>
+          <ul class="plain-list">
+            <li>「下载选中」会按勾选逐个生成文件；班级分表会生成 20 个独立文件。</li>
+            <li>浏览器若提示「允许下载多个文件」，请选择允许。</li>
+            <li>「合并为一个工作簿」仍提供一个包含全部结果表的 xlsx，便于存档。</li>
+            <li>所有计算在本机完成，文件不上传任何服务器。</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="dialog" id="dialog">
+    <div class="dialog-head"><h2 id="dialogTitle">提示</h2><button class="icon-btn" id="dialogClose" type="button">×</button></div>
+    <div class="dialog-body" id="dialogBody"></div>
+    <div class="dialog-foot" id="dialogFoot"></div>
+  </div>
+</div>
+
+<script src="assets/xlsx.full.min.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
